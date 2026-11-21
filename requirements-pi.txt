@@ -1,0 +1,10 @@
+-r requirements.txt
+pyserial==3.5
+RPLCD==1.4.0
+# ARM64 wheels; 4.11 supports the NumPy 1.x supplied by Bookworm as well as 2.x.
+# Keep apt NumPy for Picamera2/libcamera. scripts/setup_pi.sh constrains pip to it.
+--only-binary=opencv-contrib-python-headless
+opencv-contrib-python-headless==4.11.0.86
+# Install NumPy, Picamera2 and libcamera using apt, then create
+# the Pi venv with --system-site-packages. Install apt smbus for the optional LCD.
+# Do not install requirements-laptop.txt.

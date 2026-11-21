@@ -1,0 +1,12 @@
+mode = "simulation"
+data_dir = "../data/simulation"
+timezone = "Asia/Kolkata"
+
+[web]
+host = "127.0.0.1"
+port = 8765
+
+[authentication]
+attempt_timeout = 30
+face_timeout = 12
+fingerprint_timeout = 15

@@ -1,0 +1,27 @@
+mode = "laptop"
+data_dir = "../data/laptop"
+timezone = "Asia/Kolkata"
+
+[web]
+host = "127.0.0.1"
+port = 8765
+
+[camera]
+index = 0
+width = 640
+height = 480
+
+[face]
+backend = "sface"
+model_dir = "../models"
+samples = 20
+cosine_threshold = 0.45
+similarity_margin = 0.08
+consecutive_frames = 3
+min_face_pixels = 100
+min_sharpness = 45.0
+
+[authentication]
+attempt_timeout = 35
+face_timeout = 15
+fingerprint_timeout = 15

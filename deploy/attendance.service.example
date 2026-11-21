@@ -1,0 +1,20 @@
+[Unit]
+Description=Portable dual biometric attendance
+After=network.target
+
+[Service]
+Type=simple
+# Replace YOUR_USER and every /home/YOUR_USER path before installing.
+User=YOUR_USER
+WorkingDirectory=/home/YOUR_USER/final-smart-attendance-system
+# Validate imports and run the offline face models before accepting scans.
+ExecStartPre=/home/YOUR_USER/final-smart-attendance-system/.venv/bin/python -m attendance --config /home/YOUR_USER/final-smart-attendance-system/config/raspberry_pi.toml doctor
+ExecStart=/home/YOUR_USER/final-smart-attendance-system/.venv/bin/python -m attendance --config /home/YOUR_USER/final-smart-attendance-system/config/raspberry_pi.toml serve --host 0.0.0.0
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=10
+UMask=0077
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

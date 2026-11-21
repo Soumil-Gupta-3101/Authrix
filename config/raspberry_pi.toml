@@ -1,0 +1,46 @@
+mode = "raspberry_pi"
+data_dir = "../data/raspberry_pi"
+timezone = "Asia/Kolkata"
+
+[web]
+host = "127.0.0.1" # Set to 0.0.0.0 for the teacher's phone on trusted Wi-Fi.
+port = 8765
+
+[camera]
+width = 640
+height = 480
+
+[face]
+backend = "sface"
+model_dir = "../models"
+samples = 20
+cosine_threshold = 0.45
+similarity_margin = 0.08
+consecutive_frames = 3
+min_face_pixels = 100
+min_sharpness = 45.0
+
+[authentication]
+attempt_timeout = 35
+face_timeout = 15
+fingerprint_timeout = 15
+
+[fingerprint]
+port = "/dev/serial0"
+# For Pi 5 GPIO14/15 (physical pins 8/10), enable uart0-pi5 and
+# select its actual device, usually /dev/ttyAMA0. Check the Pi's UART mapping.
+baud = 57600
+address = 4294967295
+password = 0
+serial_timeout = 1.0
+minimum_score = 50
+# R30x / R307 EF01 UART protocol. Verify your RS307 seller datasheet first.
+
+[lcd]
+enabled = true # Automatically use the LCD when available; absence is allowed.
+expander = "PCF8574"
+address = 0x27 # Run i2cdetect -y 1; 0x3f is another common address.
+bus = 1
+columns = 16
+rows = 2
+

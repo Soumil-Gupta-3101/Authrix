@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Teacher sign in · Attend</title><link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"></head>
+<body class="login-page"><main class="login-card">
+  <div class="brand-mark">a</div><p class="eyebrow">YOUR LOCAL ATTENDANCE STATION</p><h1>Welcome to Attend.</h1>
+  <p>Sign in to register students, manage a class session, and review attendance.</p>
+  <form method="post"><input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <label for="password">Teacher password</label><input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
+    {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+    <button type="submit">Sign in <span aria-hidden="true">→</span></button>
+  </form><p class="small">Use the password created with the project’s init command.</p>
+</main></body></html>
