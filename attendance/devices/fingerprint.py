@@ -124,7 +124,7 @@ class R307:
         check_deadline(deadline, cancel)
         return match[0] if match and match[1] >= self.options.get("minimum_score", 50) else None
 
-    def enroll(self, reserved_slots, cancel, progress):
+    def enroll(self, reserved_slots, cancel, progress, *, replace_slot=None, before_store=None):
         self.open()
         free = sorted(set(range(self.capacity)) - self.occupied() - set(reserved_slots))
         if not free:
@@ -135,7 +135,8 @@ class R307:
         progress("Place finger: sample 1")
         self._wait_finger(True, deadline, cancel)
         self._ok(0x02, b"\x01")
-        if self.search() is not None:
+        match = self.search()
+        if match is not None and match[0] != replace_slot:
             raise DeviceError("This finger is already stored in the sensor; enrollment cancelled")
         progress("Remove your finger")
         self._wait_finger(False, deadline, cancel)
@@ -145,6 +146,8 @@ class R307:
         self._ok(0x05) # RegModel verifies that both samples agree.
         check_deadline(deadline, cancel)
         slot = free[0]
+        if before_store is not None:
+            before_store(slot)
         self._ok(0x06, b"\x01" + struct.pack(">H", slot))
         return slot
 

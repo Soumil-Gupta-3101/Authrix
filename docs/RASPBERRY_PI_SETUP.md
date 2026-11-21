@@ -191,7 +191,7 @@ Create your teacher password. Use `hostname -I` to find the Pi's LAN IP. On a la
 1. Run **Test devices** from the dashboard and physically check the outputs. This diagnostic pulses green without recording attendance.
 2. Register the real students. Do this while no session is active.
 3. Enroll each face using the **Pi camera**. This avoids camera/lighting differences from laptop training.
-4. Enroll each finger: remove any finger, place the student's finger, remove it, then place the same finger again. Wait for enrollment to finish. Existing sensor templates are not overwritten.
+4. Enroll each finger by removing any finger, placing the student's finger, removing it, then placing the same finger again. Wait for **Enrollment saved** and the **Enrolled** badge.
 5. Verify every student has both enrollment badges. Start the correct class and subject.
 6. Click **Scan once**. The face must match first. When the dashboard or LCD requests a finger, remove any existing finger and place the corresponding student's finger. Both identities must match.
 7. Check the session register and station display. An accepted scan shows **Attendance saved** on the dashboard and available LCD. Duplicate/mismatch/timeout attempts show rejection feedback and preserve attendance counts.
@@ -199,6 +199,8 @@ Create your teacher password. Use `hostname -I` to find the Pi's LAN IP. On a la
 9. Close the session and download the report. Review the clock and `raspberry_pi` mode column.
 
 Pi data lives in `data/raspberry_pi/attendance.sqlite3` and `data/raspberry_pi/faces/<student ID>.npz`. The dashboard shows the exact paths, saved sample counts and missing/damaged files. New face enrollments save aligned color crops; older Pi grayscale archives are also loaded by SFace without rewriting them. Restarting with the same profile reloads these files; no re-enrollment is needed after a normal reboot. Fingerprint templates remain in sensor flash, and the database retains their student-to-slot mappings. The initial move from laptop to Pi still requires real fingerprint enrollment; do not copy simulated fingerprint mappings.
+
+To change a fingerprint, stop scanning and close the active class session, then select **Re-enroll finger** for that student. Capture the same finger twice, following the prompts. You may recapture the existing finger or use a different one. The replacement needs one free sensor slot. The old template is retained until the new template is stored and linked to the student, then deleted. Another student's stored finger is rejected. Interrupted replacements are recorded in SQLite and cleaned up on subsequent fingerprint operations. A cleanup warning means a previous fingerprint may remain usable until its deletion succeeds. Verify **Enrollment saved**, review any warning, and scan the new finger in a new session.
 
 After enrollment, stop the dashboard/service and test disk loading with the real Pi camera independently of fingerprint and LCD:
 
@@ -235,6 +237,8 @@ Do not start a second manual server while the service is running. To perform mai
 | Test on the actual Pi | Pass condition |
 |---|---|
 | Enroll face and finger | Both enrollments persist after reboot |
+| Re-enroll fingerprint | New finger matches the same student; previous template is removed after successful cleanup |
+| Failed or cancelled fingerprint replacement | Previous enrollment remains usable |
 | Face check before and after reboot, without recapture | `hardware_test.py face --roll ...` identifies the same expected student; no attendance written |
 | Enrolled face A + finger A | Exactly one Present record and Attendance saved on the dashboard and available LCD |
 | Same student repeats in same session | Duplicate rejected; still one record |
@@ -264,7 +268,8 @@ Disconnect/reconnect wiring only with power removed. For failure testing, shut d
 | Fingerprint command rejects | Read reported hexadecimal status; verify R30x command support and seller manual; no templates are accepted on protocol error |
 | Template index command unsupported | This driver requires `ReadIndexTable 0x1F`; confirm hardware/firmware before adapting the driver |
 | Sensor has templates but app says unknown | Slots are not mapped to this database, or sensor was replaced; re-enroll against the intended database |
-| Finger already exists during enrollment | Keep the original mapping; do not enroll one finger to two students. An orphan slot requires deliberate sensor maintenance after backing up |
+| Finger already exists during enrollment | Use Re-enroll finger to recapture the selected student's current finger. A finger assigned to another student is rejected. An orphan slot requires sensor maintenance after backing up |
+| Fingerprint cleanup warning | Retry a fingerprint operation or Test devices. Pending cleanup survives restart. Confirm sensor communication and inspect the reported slot |
 | Camera unavailable | Correct CSI connector, ribbon/cable orientation, camera detection, no competing camera process |
 | Face repeatedly times out | Enrollment quality, distance, lighting, focus, one face in frame; calibrate threshold using positive and negative trials |
 | Device permission denied | Re-login after group changes; dialout/video/i2c access; only one device process |

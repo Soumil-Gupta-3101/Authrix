@@ -86,8 +86,8 @@ function render(state) {
     finger.append(badge(s.fingerprint_id !== null ? "Enrolled" : "Needed", s.fingerprint_id !== null));
     const actions = cell(""), wrapper = document.createElement("div"); wrapper.className = "row-actions";
     ["face", "fingerprint"].forEach(kind => { const button = document.createElement("button"); button.className = "secondary small-button";
-      button.textContent = kind === "face" ? (s.face_ready ? "Recapture face" : "Enroll face") : "Enroll finger";
-      button.disabled = busy || !!active || (kind === "fingerprint" && s.fingerprint_id !== null);
+      button.textContent = kind === "face" ? (s.face_ready ? "Recapture face" : "Enroll face") : (s.fingerprint_id !== null ? "Re-enroll finger" : "Enroll finger");
+      button.disabled = busy || !!active;
       button.addEventListener("click", () => action("/api/jobs", {kind, student_id:s.id})); wrapper.append(button); });
     actions.append(wrapper); tr.append(name, cell(s.class_name), face, finger, actions);
   });

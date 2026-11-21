@@ -68,11 +68,13 @@ Your exact **“RS307” model is pending confirmation**. The supplied fingerpri
 
 ## Daily workflow
 
-1. Register the class roster while no session is open. Enroll face and fingerprint for each student.
+1. Register the class roster while no session is open. Enroll face and fingerprint for each student. Use **Recapture face** or **Re-enroll finger** to update an enrollment while the session is closed.
 2. Select the class and subject; start a session. The session records a snapshot of the roster.
 3. Use **Scan once**, or **Start continuous scanning** for a queue of students. Continuous mode runs on the server until Stop, sign-out, session closure, a hardware error or server shutdown.
 4. Each student looks at the camera, waits for the finger prompt on the dashboard or LCD, removes any existing finger, then places their enrolled finger. An accepted database write displays **Attendance saved**. An LCD failure falls back to dashboard feedback and allows enrollment and scans to continue.
 5. Close the session and download **Excel** or **CSV**. Unmarked students are `Pending` during an open session and `Absent` once closed.
+
+Fingerprint re-enrollment captures the chosen finger twice into a free sensor slot, switches the student's mapping after storage succeeds, and deletes the previous template. The same finger can be recaptured, or a different finger can replace it. Fingers already stored for another student are rejected. One spare template slot is needed during replacement. Failed capture or database writes preserve the previous enrollment. Interrupted writes are recorded for cleanup on the next fingerprint operation. If deletion of the previous template fails, the dashboard reports a warning and that fingerprint remains linked until cleanup succeeds.
 
 ## Verification and maintenance
 

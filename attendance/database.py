@@ -21,6 +21,9 @@ class Database:
                     id INTEGER PRIMARY KEY, roll TEXT NOT NULL UNIQUE, name TEXT NOT NULL,
                     class_name TEXT NOT NULL, face_ready INTEGER NOT NULL DEFAULT 0,
                     fingerprint_id INTEGER UNIQUE, created_at TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS fingerprint_cleanup(
+                    template_id INTEGER PRIMARY KEY,
+                    student_id INTEGER REFERENCES students(id));
                 CREATE TABLE IF NOT EXISTS sessions(
                     id INTEGER PRIMARY KEY, subject TEXT NOT NULL, class_name TEXT NOT NULL,
                     started_at TEXT NOT NULL, ended_at TEXT, active INTEGER NOT NULL DEFAULT 1);
@@ -89,7 +92,42 @@ class Database:
     def student_for_fingerprint(self, template_id):
         with self.connect() as db:
             row = db.execute("SELECT id FROM students WHERE fingerprint_id=?", (template_id,)).fetchone()
+            if row is None:
+                row = db.execute("SELECT student_id FROM fingerprint_cleanup WHERE template_id=? AND student_id IS NOT NULL",
+                                 (template_id,)).fetchone()
             return row[0] if row else None
+
+    def reserve_fingerprint_template(self, template_id):
+        """Record a candidate before writing sensor flash, for crash recovery."""
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            if db.execute("SELECT 1 FROM sessions WHERE active=1").fetchone():
+                raise ValueError("Close the session before changing biometric enrollment")
+            if db.execute("SELECT 1 FROM students WHERE fingerprint_id=?", (template_id,)).fetchone():
+                raise ValueError("Fingerprint slot is already assigned")
+            db.execute("INSERT INTO fingerprint_cleanup(template_id) VALUES (?)", (template_id,))
+
+    def replace_fingerprint(self, student_id, template_id, previous_slot):
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            if db.execute("SELECT 1 FROM sessions WHERE active=1").fetchone():
+                raise ValueError("Close the session before changing biometric enrollment")
+            updated = db.execute("UPDATE students SET fingerprint_id=? WHERE id=? AND fingerprint_id IS ?",
+                                 (template_id, student_id, previous_slot))
+            if updated.rowcount != 1:
+                raise ValueError("Fingerprint enrollment changed during capture. Retry the operation")
+            db.execute("DELETE FROM fingerprint_cleanup WHERE template_id=?", (template_id,))
+            if previous_slot is not None and previous_slot != template_id:
+                db.execute("INSERT INTO fingerprint_cleanup(template_id,student_id) VALUES (?,?)",
+                           (previous_slot, student_id))
+
+    def pending_fingerprint_cleanup(self):
+        with self.connect() as db:
+            return [dict(row) for row in db.execute("SELECT * FROM fingerprint_cleanup ORDER BY template_id")]
+
+    def finish_fingerprint_cleanup(self, template_id):
+        with self.connect() as db:
+            db.execute("DELETE FROM fingerprint_cleanup WHERE template_id=?", (template_id,))
 
     def sessions(self):
         with self.connect() as db:

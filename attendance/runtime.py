@@ -80,9 +80,7 @@ class Runtime:
             if kind in {"face", "fingerprint"}:
                 if active:
                     raise ValueError("Close the session before changing biometric enrollment")
-                student = self.db.student(int(payload.get("student_id", 0)))
-                if kind == "fingerprint" and student["fingerprint_id"] is not None:
-                    raise ValueError("Fingerprint already enrolled. Use a new student only for a new person")
+                self.db.student(int(payload.get("student_id", 0)))
             payload = dict(payload)
             payload["session_id"] = active["id"] if active else None
             for key in ("sim_face", "sim_fingerprint"):
@@ -117,14 +115,21 @@ class Runtime:
                     self.db.set_face(sid)
                 else:
                     if self.fingerprint:
+                        previous_slot = self.db.student(sid)["fingerprint_id"]
+                        self._cleanup_fingerprints()
                         reserved = [s["fingerprint_id"] for s in self.db.students() if s["fingerprint_id"] is not None]
-                        slot = self.fingerprint.enroll(reserved, self.cancel_event, self.progress)
+                        reserved += [item["template_id"] for item in self.db.pending_fingerprint_cleanup()]
                         try:
-                            self.db.set_fingerprint(sid, slot)
+                            slot = self.fingerprint.enroll(reserved, self.cancel_event, self.progress,
+                                                          replace_slot=previous_slot,
+                                                          before_store=self.db.reserve_fingerprint_template)
+                            if self.cancel_event.is_set():
+                                raise Cancelled("Operation cancelled")
+                            self.db.replace_fingerprint(sid, slot, previous_slot)
                         except Exception:
-                            # Remove only the slot this enrollment just created.
-                            self.fingerprint.delete(slot)
+                            self._cleanup_fingerprints()
                             raise
+                        self._cleanup_fingerprints()
                     else:
                         self.db.set_fingerprint(sid, sid)
                 self.progress("Enrollment saved")
@@ -142,6 +147,31 @@ class Runtime:
                     except Exception:
                         log.exception("Device cleanup failed")
             self.gate.release()
+
+    def _cleanup_fingerprints(self):
+        warnings = []
+        try:
+            pending = self.db.pending_fingerprint_cleanup()
+            if not pending:
+                return
+            current_slots = {s["fingerprint_id"] for s in self.db.students()}
+            occupied = self.fingerprint.occupied()
+            for item in pending:
+                slot = item["template_id"]
+                try:
+                    if slot not in current_slots and slot in occupied:
+                        self.fingerprint.delete(slot)
+                    self.db.finish_fingerprint_cleanup(slot)
+                except Exception as exc:
+                    detail = "Previous fingerprint remains active. " if item["student_id"] is not None else ""
+                    warnings.append(f"Fingerprint cleanup pending for slot {slot}. {detail}{exc}")
+        except Exception as exc:
+            warnings.append(f"Fingerprint cleanup will retry. A previous fingerprint may remain active. {exc}")
+        for warning in warnings:
+            log.warning(warning)
+        if warnings:
+            warnings.append("Cleanup will retry during the next fingerprint operation")
+        self.update(warning=". ".join(warnings) or None)
 
     def attempt(self, payload):
         """Fresh evidence is local to this call and tied to one session ID."""
@@ -162,6 +192,7 @@ class Runtime:
                 failure = "missing_biometric"
             else:
                 if self.fingerprint:
+                    self._cleanup_fingerprints()
                     slot = self.fingerprint.identify(min(deadline, time.monotonic() + auth.get("fingerprint_timeout", 15)),
                                                      self.cancel_event, self.progress)
                     finger_id = self.db.student_for_fingerprint(slot) if slot is not None else None
@@ -197,6 +228,7 @@ class Runtime:
                 self.face._detector()
         details = "Simulation devices ready"
         if self.fingerprint:
+            self._cleanup_fingerprints()
             occupied = self.fingerprint.occupied()
             details = f"Fingerprint UART OK: {len(occupied)}/{self.fingerprint.capacity} slots used"
         self.feedback.show("Device test", "Devices ready")

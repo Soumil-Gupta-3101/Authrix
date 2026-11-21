@@ -264,6 +264,15 @@ class WebTests(ProjectCase):
         self.assertEqual(self.post("/api/students", {"roll": "A004", "name": "New", "class_name": "ECE-A"}).status_code, 400)
         self.assertEqual(self.post("/api/jobs", {"kind": "face", "student_id": self.a}).status_code, 400)
 
+    def test_fingerprint_reenrollment_is_available_through_dashboard_api(self):
+        self.login()
+        self.db.close_session()
+        response = self.post("/api/jobs", {"kind": "fingerprint", "student_id": self.a})
+        self.assertEqual(response.status_code, 202)
+        self.runtime.worker.join(3)
+        self.assertEqual(self.runtime.snapshot()["status"], "done")
+        self.assertEqual(self.db.student(self.a)["fingerprint_id"], self.a)
+
     def test_register_then_enroll_then_start(self):
         self.login()
         self.post("/api/sessions/close", {})

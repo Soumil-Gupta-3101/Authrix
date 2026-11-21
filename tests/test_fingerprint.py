@@ -2,6 +2,7 @@ import struct
 from threading import Event
 import time
 import unittest
+from unittest.mock import MagicMock
 
 from attendance.devices.common import DeviceError
 from attendance.devices.fingerprint import R307
@@ -95,6 +96,56 @@ class FingerprintTests(unittest.TestCase):
         driver = R307({}, UART([ack(2), ack(), ack(), ack(payload=struct.pack(">HH", 3, 20))]))
         driver.capacity = 8
         self.assertIsNone(driver.identify(time.monotonic() + 2, Event(), lambda _: None))
+
+    def test_reenrollment_of_own_finger_uses_a_spare_slot(self):
+        responses = [ack(payload=b"\x01" + bytes(31)), ack(2), ack(), ack(),
+                     ack(payload=struct.pack(">HH", 0, 100)), ack(2), ack(), ack(), ack(), ack()]
+        uart = UART(responses)
+        driver = R307({}, uart)
+        driver.capacity = 8
+        planned = []
+
+        def before_store(slot):
+            self.assertNotIn(6, [packet[9] for packet in uart.written])
+            planned.append(slot)
+
+        slot = driver.enroll([0, 2], Event(), lambda _: None, replace_slot=0, before_store=before_store)
+        self.assertEqual(slot, 1)
+        self.assertEqual(planned, [1])
+        self.assertEqual(uart.written[-1][9:-2], b"\x06\x01\x00\x01")
+        self.assertNotIn(0x0C, [packet[9] for packet in uart.written])
+
+    def test_reenrollment_rejects_a_different_students_finger(self):
+        responses = [ack(payload=b"\x09" + bytes(31)), ack(2), ack(), ack(),
+                     ack(payload=struct.pack(">HH", 3, 100))]
+        uart = UART(responses)
+        driver = R307({}, uart)
+        driver.capacity = 8
+        with self.assertRaises(DeviceError):
+            driver.enroll([0, 3], Event(), lambda _: None, replace_slot=0)
+        self.assertNotIn(6, [packet[9] for packet in uart.written])
+        self.assertNotIn(0x0C, [packet[9] for packet in uart.written])
+
+    def test_reenrollment_with_full_storage_preserves_existing_template(self):
+        uart = UART([ack(payload=b"\xff" + bytes(31))])
+        driver = R307({}, uart)
+        driver.capacity = 8
+        with self.assertRaisesRegex(DeviceError, "no free"):
+            driver.enroll([0], Event(), lambda _: None, replace_slot=0)
+        self.assertEqual([packet[9] for packet in uart.written], [0x1F])
+
+    def test_reenrollment_capture_failure_does_not_store_or_delete(self):
+        responses = [ack(payload=b"\x01" + bytes(31)), ack(2), ack(), ack(),
+                     ack(9), ack(2), ack(), ack(6)]
+        uart = UART(responses)
+        driver = R307({}, uart)
+        driver.capacity = 8
+        before_store = MagicMock()
+        with self.assertRaises(DeviceError):
+            driver.enroll([0], Event(), lambda _: None, replace_slot=0, before_store=before_store)
+        before_store.assert_not_called()
+        self.assertNotIn(6, [packet[9] for packet in uart.written])
+        self.assertNotIn(0x0C, [packet[9] for packet in uart.written])
 
 
 if __name__ == "__main__":

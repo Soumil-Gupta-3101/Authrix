@@ -1,5 +1,13 @@
 # Verification record
 
+## Fingerprint re-enrollment — 21 November 2026
+
+The dashboard now offers **Re-enroll finger** for an enrolled student while the class session is closed. Replacements use a spare sensor slot, update the student mapping transactionally after storage, and retire the previous template. SQLite records unfinished candidates and pending deletion so cleanup can recover after an interruption. A previous template remains associated with its student while deletion is pending, and the dashboard displays a warning. Cleanup retries during enrollment, scanning and diagnostics.
+
+**86 automated tests passed** with `python -m unittest discover -s tests -q`. Added checks cover recapturing the current finger, rejecting another student's finger, full storage, capture failure, cancellation, failed database writes, uncertain store acknowledgements, pending old-template deletion, retry during scanning, recovery across database reopening, existing-database migration, concurrent session/mapping changes, preservation of other students' templates and the dashboard enrollment API. Sensor operations are mocked, and protocol tests use synthetic UART responses. Physical fingerprint replacement on the Pi remains to be verified.
+
+Dashboard JavaScript syntax checking and `git diff --check` passed.
+
 ## Optional LCD and camera/fingerprint operation — 21 November 2026
 
 The Pi now uses dashboard feedback and an available 16×2 I²C LCD. External LED/buzzer controls, dashboard indicators, GPIO tests and GPIO library requirements were removed. LCD access is enabled by default and retried after five seconds during subsequent operations. Missing libraries, absent displays and LCD write/cleanup failures fall back to dashboard feedback.

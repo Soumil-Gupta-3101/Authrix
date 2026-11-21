@@ -20,7 +20,7 @@ flowchart LR
 | File | Responsibility |
 |---|---|
 | `attendance/config.py` | Explicit runtime profile and validated settings |
-| `attendance/database.py` | Students, one active session, roster snapshot, audit, transactional duplicate prevention |
+| `attendance/database.py` | Students, one active session, roster snapshot, audit, transactional duplicate prevention, fingerprint replacement and cleanup journal |
 | `attendance/runtime.py` | Serialized enrollment/scan jobs, cancellation, per-attempt evidence, timeouts, feedback |
 | `attendance/devices/camera.py` | Laptop VideoCapture / Pi Picamera2, consistent BGR frames, transient preview |
 | `attendance/devices/face.py` | Haar detection, quality checks, LBPH identity models, unknown/ambiguity rejection |
@@ -62,11 +62,13 @@ Prompts are displayed during capture and results after the database decision. Th
 
 ## Data and maintenance
 
-The database has `students`, `sessions`, `roster`, `attendance`, `attempts` and `metadata` tables. All stored timestamps are UTC; the dashboard and reports use `Asia/Kolkata` by default. `roster` snapshots roll/name at session creation. Changing student registration is disallowed through the interface while a session is active.
+The database has `students`, `sessions`, `roster`, `attendance`, `attempts`, `metadata` and `fingerprint_cleanup` tables. All stored timestamps are UTC; the dashboard and reports use `Asia/Kolkata` by default. `roster` snapshots roll/name at session creation. Changing student registration is disallowed through the interface while a session is active.
 
 `faces/<student_id>.npz` contains 160×160 grayscale crops for LBPH/older enrollments, or 112×112 aligned BGR crops for new SFace enrollments. SFace also reads older grayscale crops and computes landmarks/features in memory, leaving the archive untouched. Archives use `allow_pickle=False` and validate image shape, dtype and count. Saves flush to disk and replace the old archive atomically. Models/features are cached by file metadata and rebuilt on restart or recapture. Runtime startup loads enrollment before a timed scan; the authenticated dashboard checks the actual archives separately from database flags.
 
-Model weights in `models/` are public, downloaded by the explicit `setup-face-models` command, SHA-256 verified, and ignored by Git. Recognition never downloads models or uploads face data. The profile's relative data/model paths are resolved against the config file. Fingerprint images/templates remain in the sensor. Enrollment avoids existing/reserved slots and rejects an already-stored finger. If the database update fails after enrollment, it attempts to remove only the newly-created slot. If the process loses power between these operations, that slot may be orphaned; diagnostics will list it and manual reconciliation is required.
+Model weights in `models/` are public, downloaded by the explicit `setup-face-models` command, SHA-256 verified, and ignored by Git. Recognition never downloads models or uploads face data. The profile's relative data/model paths are resolved against the config file. Fingerprint images/templates remain in the sensor. Enrollment avoids existing/reserved slots and rejects a finger already stored for another student. Re-enrollment permits the selected student's current finger and stores the replacement in a free slot.
+
+Before sensor storage, a candidate slot is recorded in `fingerprint_cleanup` with no student association. After the sensor acknowledges storage, one SQLite transaction checks the previous mapping and session state, installs the new mapping, removes the candidate journal entry and queues the old template with its student association. Cleanup checks occupied slots, deletes retired or unfinished templates and removes completed journal entries. Slots assigned to current students are preserved. Pending retired templates retain their student association until deletion succeeds, allowing matching when a same-finger recapture leaves both templates on the sensor after a deletion failure. The dashboard warns about pending cleanup. Enrollment, scans and diagnostics retry it, including after restart. Existing databases gain the recovery table automatically.
 
 One process must own a set of physical hardware. The CLI prevents a second process using the same data directory, but two separately configured data directories could still address the same hardware. Do not run them simultaneously. Backup/password maintenance also uses this lock.
 

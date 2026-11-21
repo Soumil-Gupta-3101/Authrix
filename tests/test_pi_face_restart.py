@@ -117,8 +117,9 @@ class PiFaceRestartTests(unittest.TestCase):
         sensor = MagicMock(spec=R307)
         runtime.fingerprint = sensor
 
-        def enroll_finger(reserved, cancel, progress):
+        def enroll_finger(reserved, cancel, progress, **options):
             progress("Place your finger")
+            options["before_store"](42)
             return 42
 
         sensor.enroll.side_effect = enroll_finger
